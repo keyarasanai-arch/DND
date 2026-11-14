@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D&D 5e Combat Tracker</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --card: #16213e;
+    --card-hover: #1a2744;
+    --border: #0f3460;
+    --accent: #e94560;
+    --accent-dim: #c73e54;
+    --text: #eee;
+    --text-dim: #999;
+    --hp-green: #4caf50;
+    --hp-yellow: #ff9800;
+    --hp-red: #f44336;
+    --hp-crit: #b71c1c;
+    --hp-dead: #5d1a1a;
+    --initiative: #ffd700;
+    --current-turn: #00e5ff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 12px;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 12px;
+  }
+
+  .header h1 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .round-display {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .round-num {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--initiative);
+    min-width: 80px;
+    text-align: center;
+  }
+
+  .btn {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--card);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+
+  .btn:hover { background: var(--card-hover); border-color: var(--accent); }
+  .btn-accent { background: var(--accent); border-color: var(--accent); }
+  .btn-accent:hover { background: var(--accent-dim); }
+  .btn-sm { padding: 4px 8px; font-size: 0.75rem; }
+  .btn-danger { border-color: var(--hp-red); color: var(--hp-red); }
+  .btn-danger:hover { background: var(--hp-red); color: #fff; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 12px;
+  }
+
+  @media (max-width: 700px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  /* Initiative List */
+  .initiative-panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+  }
+
+  .initiative-panel h2 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .combatant-list { display: flex; flex-direction: column; gap: 4px; }
+
+  .combatant-row {
+    display: grid;
+    grid-template-columns: 36px 1fr 60px 70px 120px;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    cursor: pointer;
+  }
+
+  .combatant-row:hover { background: var(--card-hover); }
+
+  .combatant-row.active {
+    border-color: var(--current-turn);
+    background: rgba(0, 229, 255, 0.08);
+  }
+
+  .combatant-row.dead { opacity: 0.5; }
+
+  .initiative-order {
+    font-weight: 700;
+    color: var(--initiative);
+    text-align: center;
+    font-size: 0.85rem;
+  }
+
+  .combatant-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .combatant-init {
+    text-align: center;
+    font-weight: 600;
+    color: var(--initiative);
+    font-size: 0.85rem;
+  }
+
+  .ac-badge {
+    text-align: center;
+    font-size: 0.8rem;
+    padding: 2px 6px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 4px;
+  }
+
+  .hp-bar-container {
+    height: 8px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .hp-bar {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s, background 0.3s;
+  }
+
+  /* Right Panel: Dice + Conditions */
+  .right-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+  }
+
+  .panel h2 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  /* Dice Roller */
+  .dice-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .dice-btn {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--card);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+
+  .dice-btn:hover { border-color: var(--accent); background: var(--card-hover); }
+
+  .dice-input-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .dice-input {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.85rem;
+    font-family: monospace;
+  }
+
+  .dice-input:focus { outline: none; border-color: var(--accent); }
+
+  .dice-result {
+    min-height: 28px;
+    padding: 6px 10px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: 0.9rem;
+    color: var(--current-turn);
+    text-align: center;
+  }
+
+  /* Conditions */
+  .conditions-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .condition-chip {
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+
+  .condition-chip:hover { border-color: var(--accent); color: var(--text); }
+  .condition-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* Add Combatant Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-overlay.show { display: flex; }
+
+  .modal {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    min-width: 320px;
+    max-width: 90vw;
+  }
+
+  .modal h3 {
+    font-size: 1rem;
+    margin-bottom: 12px;
+  }
+
+  .form-group {
+    margin-bottom: 10px;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+
+  .form-group input, .form-group select {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.85rem;
+  }
+
+  .form-group input:focus, .form-group select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+    justify-content: flex-end;
+  }
+
+  /* Death save tracker */
+  .death-saves {
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+  }
+
+  .death-save-pip {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .death-save-pip.success { background: var(--hp-green); border-color: var(--hp-green); }
+  .death-save-pip.failure { background: var(--hp-red); border-color: var(--hp-red); }
+
+  /* HP display */
+  .hp-text {
+    font-size: 0.75rem;
+    text-align: right;
+    color: var(--text-dim);
+  }
+
+  /* Combatant detail */
+  .combatant-detail {
+    display: none;
+    padding: 8px 10px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 6px;
+    margin-top: 4px;
+  }
+
+  .combatant-row.active + .combatant-detail, .combatant-detail.show { display: block; }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .detail-item {
+    font-size: 0.8rem;
+  }
+
+  .detail-label { color: var(--text-dim); }
+  .detail-value { font-weight: 600; }
+
+  .hp-input-row {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+  }
+
+  .hp-input-row input {
+    width: 60px;
+    padding: 4px 6px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.8rem;
+  }
+
+  .encounter-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⚔️ Combat Tracker</h1>
+  <div class="round-display">
+    <span class="round-num" id="roundDisplay">Round 1</span>
+    <button class="btn btn-accent" onclick="nextTurn()">Next Turn ▶</button>
+    <button class="btn" onclick="nextRound()">Next Round ⟳</button>
+    <button class="btn btn-danger" onclick="resetEncounter()">Reset</button>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- Left: Initiative List -->
+  <div class="initiative-panel">
+    <h2>Initiative Order</h2>
+    <button class="btn btn-sm" onclick="openAddModal()" style="margin-bottom:8px">+ Add Combatant</button>
+    <div class="combatant-list" id="combatantList"></div>
+  </div>
+
+  <!-- Right: Dice + Conditions -->
+  <div class="right-panel">
+    <!-- Dice Roller -->
+    <div class="panel">
+      <h2>🎲 Dice Roller</h2>
+      <div class="dice-row">
+        <button class="dice-btn" onclick="rollDice('1d20')">d20</button>
+        <button class="dice-btn" onclick="rollDice('1d12')">d12</button>
+        <button class="dice-btn" onclick="rollDice('1d10')">d10</button>
+        <button class="dice-btn" onclick="rollDice('1d8')">d8</button>
+        <button class="dice-btn" onclick="rollDice('1d6')">d6</button>
+        <button class="dice-btn" onclick="rollDice('1d4')">d4</button>
+      </div>
+      <div class="dice-input-row">
+        <input class="dice-input" id="diceInput" type="text" placeholder="e.g. 2d6+3" onkeydown="if(event.key==='Enter')rollCustom()">
+        <button class="btn btn-accent btn-sm" onclick="rollCustom()">Roll</button>
+      </div>
+      <div class="dice-result" id="diceResult"></div>
+    </div>
+
+    <!-- Conditions -->
+    <div class="panel">
+      <h2>⚡ Conditions</h2>
+      <p style="font-size:0.75rem;color:var(--text-dim);margin-bottom:6px">Click combatant, then toggle conditions:</p>
+      <div class="conditions-grid" id="conditionsGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Combatant Modal -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <h3>Add Combatant</h3>
+    <div class="form-group">
+      <label>Name</label>
+      <input type="text" id="compName" placeholder="Character / Monster name">
+    </div>
+    <div class="form-group">
+      <label>Hit Points (HP)</label>
+      <input type="number" id="compHP" placeholder="42" min="0">
+    </div>
+    <div class="form-group">
+      <label>Armor Class (AC)</label>
+      <input type="number" id="compAC" placeholder="15" min="1">
+    </div>
+    <div class="form-group">
+      <label>Initiative Bonus (DEX mod)</label>
+      <input type="number" id="compInit" placeholder="+2" value="0">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeAddModal()">Cancel</button>
+      <button class="btn btn-accent" onclick="addCombatant()">Add</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// === State ===
+let state = {
+  round: 1,
+  turnIndex: 0,
+  combatants: [],
+  encounterId: 'enc_' + Date.now()
+};
+
+const CONDITIONS = [
+  'Blinded', 'Charmed', 'Deafened', 'Frightened', 'Grappled',
+  'Incapacitated', 'Invisible', 'Paralyzed', 'Petrified', 'Poisoned',
+  'Prone', 'Restrained', 'Stunned', 'Unconscious'
+];
+
+// === Init ===
+function init() {
+  loadState();
+  renderCombatants();
+  renderConditions();
+}
+
+// === Persistence ===
+function saveState() {
+  try {
+    localStorage.setItem('combatTracker', JSON.stringify(state));
+  } catch(e) {}
+}
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem('combatTracker');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      state = { ...state, ...parsed };
+    }
+  } catch(e) {}
+}
+
+// === Combatants ===
+function addCombatant() {
+  const name = document.getElementById('compName').value.trim();
+  const hp = parseInt(document.getElementById('compHP').value) || 0;
+  const ac = parseInt(document.getElementById('compAC').value) || 10;
+  const initBonus = parseInt(document.getElementById('compInit').value) || 0;
+
+  if (!name) return;
+
+  const initiative = rollSingle(20) + initBonus;
+
+  state.combatants.push({
+    name,
+    hp,
+    maxHp: hp,
+    ac,
+    initBonus,
+    initiative,
+    conditions: [],
+    deathSaves: { success: 0, failure: 0 },
+    isDead: false
+  });
+
+  sortCombatants();
+  saveState();
+  renderCombatants();
+  closeAddModal();
+}
+
+function sortCombatants() {
+  state.combatants.sort((a, b) => b.initiative - a.initiative);
+}
+
+function removeCombatant(index) {
+  state.combatants.splice(index, 1);
+  if (state.turnIndex >= state.combatants.length) state.turnIndex = 0;
+  saveState();
+  renderCombatants();
+}
+
+function toggleActive(index) {
+  if (index === state.turnIndex) return;
+  state.turnIndex = index;
+  saveState();
+  renderCombatants();
+}
+
+// === HP Management ===
+function applyHP(index, amount) {
+  const c = state.combatants[index];
+  if (!c) return;
+  c.hp = Math.max(0, Math.min(c.maxHp, c.hp + amount));
+  c.isDead = c.hp <= 0;
+  saveState();
+  renderCombatants();
+}
+
+function toggleDeathSave(index, type) {
+  const c = state.combatants[index];
+  if (!c || c.hp > 0) return;
+
+  if (type === 'success') {
+    c.deathSaves.success = Math.min(3, c.deathSaves.success + 1);
+    if (c.deathSaves.success >= 3) {
+      c.hp = 1;
+      c.isDead = false;
+      c.deathSaves = { success: 0, failure: 0 };
+    }
+  } else {
+    c.deathSaves.failure = Math.min(3, c.deathSaves.failure + 1);
+    if (c.deathSaves.failure >= 3) {
+      c.isDead = true;
+    }
+  }
+  saveState();
+  renderCombatants();
+}
+
+// === Conditions ===
+function toggleCondition(index, condition) {
+  const c = state.combatants[index];
+  if (!c) return;
+  const idx = c.conditions.indexOf(condition);
+  if (idx >= 0) c.conditions.splice(idx, 1);
+  else c.conditions.push(condition);
+  saveState();
+  renderCombatants();
+  renderConditions();
+}
+
+// === Turns ===
+function nextTurn() {
+  state.turnIndex = (state.turnIndex + 1) % state.combatants.length;
+  saveState();
+  renderCombatants();
+}
+
+function nextRound() {
+  state.round++;
+  state.turnIndex = 0;
+  document.getElementById('roundDisplay').textContent = 'Round ' + state.round;
+  saveState();
+  renderCombatants();
+}
+
+function resetEncounter() {
+  if (!confirm('Reset this encounter? All data will be lost.')) return;
+  state.round = 1;
+  state.turnIndex = 0;
+  state.combatants = [];
+  state.encounterId = 'enc_' + Date.now();
+  document.getElementById('roundDisplay').textContent = 'Round 1';
+  saveState();
+  renderCombatants();
+  renderConditions();
+}
+
+// === Dice ===
+function rollSingle(sides) {
+  return Math.floor(Math.random() * sides) + 1;
+}
+
+function rollDice(notation) {
+  return rollNotation(notation);
+}
+
+function rollCustom() {
+  const input = document.getElementById('diceInput').value.trim();
+  if (!input) return;
+  return rollNotation(input);
+}
+
+function rollNotation(notation) {
+  const regex = /^(\d+)?d(\d+)([+-]\d+)?$/i;
+  const match = notation.match(regex);
+  if (!match) {
+    showDiceResult('Invalid: ' + notation);
+    return;
+  }
+
+  const count = parseInt(match[1]) || 1;
+  const sides = parseInt(match[2]);
+  const modifier = parseInt(match[3]) || 0;
+
+  const rolls = [];
+  let total = 0;
+  for (let i = 0; i < count; i++) {
+    const r = rollSingle(sides);
+    rolls.push(r);
+    total += r;
+  }
+  total += modifier;
+
+  const modStr = modifier > 0 ? '+ ' + modifier : modifier < 0 ? '- ' + Math.abs(modifier) : '';
+  const rollsStr = count > 1 ? '[' + rolls.join(', ') + ']' : '';
+  showDiceResult(`${notation} = ${total}${modStr}${rollsStr ? ' ' + rollsStr : ''}`);
+}
+
+function showDiceResult(text) {
+  const el = document.getElementById('diceResult');
+  el.textContent = text;
+  el.style.animation = 'none';
+  el.offsetHeight; // reflow
+  el.style.animation = 'fade-in 0.3s';
+}
+
+// === Rendering ===
+function getHPColor(hp, maxHp) {
+  if (hp <= 0) return 'var(--hp-dead)';
+  const pct = (hp / maxHp) * 100;
+  if (pct > 50) return 'var(--hp-green)';
+  if (pct > 25) return 'var(--hp-yellow)';
+  return 'var(--hp-red)';
+}
+
+function renderCombatants() {
+  const list = document.getElementById('combatantList');
+  list.innerHTML = '';
+
+  state.combatants.forEach((c, i) => {
+    const hpPct = c.maxHp > 0 ? (c.hp / c.maxHp) * 100 : 0;
+    const hpColor = getHPColor(c.hp, c.maxHp);
+    const isActive = i === state.turnIndex;
+
+    const row = document.createElement('div');
+    row.className = 'combatant-row' + (isActive ? ' active' : '') + (c.isDead ? ' dead' : '');
+    row.onclick = () => toggleActive(i);
+
+    row.innerHTML = `
+      <span class="initiative-order">${i + 1}</span>
+      <span class="combatant-name">${c.name}${c.isDead ? ' 💀' : ''}</span>
+      <span class="combatant-init">${c.initiative}</span>
+      <span class="ac-badge">AC ${c.ac}</span>
+      <div>
+        <div class="hp-bar-container">
+          <div class="hp-bar" style="width:${hpPct}%;background:${hpColor}"></div>
+        </div>
+        <div class="hp-text">${c.hp}/${c.maxHp} HP</div>
+      </div>
+    `;
+
+    list.appendChild(row);
+
+    // Detail panel
+    const detail = document.createElement('div');
+    detail.className = 'combatant-detail' + (isActive ? ' show' : '');
+
+    let deathSavesHTML = '';
+    if (c.isDead || c.hp <= 0) {
+      deathSavesHTML = `
+        <div class="death-saves">
+          <span style="font-size:0.75rem;color:var(--text-dim)">Death saves:</span>
+          ${[1,2,3].map(n => `<div class="death-save-pip ${n <= c.deathSaves.success ? 'success' : ''}" onclick="event.stopPropagation();toggleDeathSave(${i},'success')"></div>`).join('')}
+          ${[1,2,3].map(n => `<div class="death-save-pip ${n <= c.deathSaves.failure ? 'failure' : ''}" onclick="event.stopPropagation();toggleDeathSave(${i},'failure')"></div>`).join('')}
+        </div>
+      `;
+    }
+
+    const conditionsHTML = c.conditions.length > 0
+      ? `<span style="color:var(--accent)">${c.conditions.join(', ')}</span>`
+      : '<span style="color:var(--text-dim);font-size:0.75rem">None</span>';
+
+    detail.innerHTML = `
+      <div class="detail-grid">
+        <div class="detail-item"><span class="detail-label">Conditions: </span>${conditionsHTML}</div>
+      </div>
+      <div class="hp-input-row">
+        <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();applyHP(${i},-1)">-1</button>
+        <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();applyHP(${i},-5)">-5</button>
+        <input type="number" id="hpInput${i}" placeholder="amt">
+        <button class="btn btn-sm" onclick="event.stopPropagation();const v=parseInt(document.getElementById('hpInput${i}').value)||0;applyHP(${i},-v)">Deal</button>
+        <button class="btn btn-sm" onclick="event.stopPropagation();const v=parseInt(document.getElementById('hpInput${i}').value)||0;applyHP(${i},v)">Heal</button>
+      </div>
+      ${deathSavesHTML}
+      <div class="encounter-actions">
+        <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();removeCombatant(${i})">Remove</button>
+      </div>
+    `;
+
+    list.appendChild(detail);
+  });
+}
+
+function renderConditions() {
+  const grid = document.getElementById('conditionsGrid');
+  grid.innerHTML = '';
+
+  // Get active combatant's conditions
+  const activeConditions = state.combatants[state.turnIndex]?.conditions || [];
+
+  CONDITIONS.forEach(cond => {
+    const chip = document.createElement('button');
+    chip.className = 'condition-chip' + (activeConditions.includes(cond) ? ' active' : '');
+    chip.textContent = cond;
+    chip.onclick = () => toggleCondition(state.turnIndex, cond);
+    grid.appendChild(chip);
+  });
+}
+
+// === Modal ===
+function openAddModal() {
+  document.getElementById('addModal').classList.add('show');
+  document.getElementById('compName').focus();
+}
+
+function closeAddModal() {
+  document.getElementById('addModal').classList.remove('show');
+  document.getElementById('compName').value = '';
+  document.getElementById('compHP').value = '';
+  document.getElementById('compAC').value = '';
+  document.getElementById('compInit').value = '0';
+}
+
+// === Keyboard ===
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeAddModal();
+});
+
+// Click outside modal to close
+document.getElementById('addModal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('addModal')) closeAddModal();
+});
+
+// === Start ===
+init();
+</script>
+
+</body>
+</html>
