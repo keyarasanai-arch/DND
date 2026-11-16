@@ -477,6 +477,10 @@
       <label>Initiative Bonus (DEX mod)</label>
       <input type="number" id="compInit" placeholder="+2" value="0">
     </div>
+    <div class="form-group">
+      <label>Initiative (manual override)</label>
+      <input type="number" id="compInitiative" placeholder="Leave blank to roll 1d20 + bonus">
+    </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeAddModal()">Cancel</button>
       <button class="btn btn-accent" onclick="addCombatant()">Add</button>
@@ -532,7 +536,8 @@ function addCombatant() {
 
   if (!name) return;
 
-  const initiative = rollSingle(20) + initBonus;
+  const manualInit = document.getElementById('compInitiative').value.trim();
+  const initiative = manualInit !== '' ? parseInt(manualInit) || 0 : rollSingle(20) + initBonus;
 
   state.combatants.push({
     name,
@@ -629,7 +634,6 @@ function nextRound() {
 }
 
 function resetEncounter() {
-  if (!confirm('Reset this encounter? All data will be lost.')) return;
   state.round = 1;
   state.turnIndex = 0;
   state.combatants = [];
@@ -794,6 +798,7 @@ function closeAddModal() {
   document.getElementById('compHP').value = '';
   document.getElementById('compAC').value = '';
   document.getElementById('compInit').value = '0';
+  document.getElementById('compInitiative').value = '';
 }
 
 // === Keyboard ===
